@@ -1,3 +1,4 @@
-/src/db
-/src/ejemplo_salida
-/src/.Rhistory
+/votaciones_csvs
+/ejemplo_salida
+/.Rhistory
+__pycache__/
