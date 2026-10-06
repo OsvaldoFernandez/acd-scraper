@@ -32,7 +32,7 @@ from bs4 import BeautifulSoup
 
 # ---------------------------------------------------------------- configuración
 BASE = "https://votaciones.hcdn.gob.ar/votacion/"
-ID_DESDE = 4331            # primera votación de 2022 (11/03/2022)
+ID_DESDE = 5769            # parto de las votaciones ya implementadas
 ID_HASTA = None            # None = seguir hasta MAX_HUECO IDs seguidos sin votación
 MAX_HUECO = 400            # el hueco más grande visto entre 2022 y 2025 fue de 203
 PAUSA = 0.5                # segundos entre pedidos: no saturar el sitio
