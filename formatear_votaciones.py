@@ -4,11 +4,20 @@ De los CSV que baja el scraper al producto final (info_sesiones_dt + sesiones_dt
 Traducción 1 a 1 de formatear_votaciones.R: misma lógica de armado, mismo
 criterio de asignación de los *_id y mismo orden final de filas.
 
+Si en la carpeta de salida ya existen info_sesiones_dt.csv/sesiones_dt.csv.gz,
+los conserva y sólo agrega las votaciones cuyo id_votacion todavía no esté ahí
+(no hace falta tener a mano los CSV crudos de las sesiones ya procesadas).
+Antes de escribir nada, los hace backup_<timestamp>_<archivo original>.
+Como los *_id son por orden alfabético de todos los nombres vistos, agregar
+sesiones nuevas puede correr los ids existentes (ver README).
+
 Uso: python formatear_votaciones.py <carpeta_con_los_csv> <carpeta_de_salida>
      (rutas absolutas, o la segunda relativa a la primera)
 """
+import csv
 import gzip
 import re
+import shutil
 import sys
 import unicodedata
 from datetime import datetime
@@ -73,11 +82,13 @@ def leer_csv_como_fread(ruta):
     return [dict(zip(encabezado, _dividir_campos(linea))) for linea in lineas[1:]]
 
 
-def leer_sesiones(carpeta):
+def leer_sesiones(carpeta, procesadas=frozenset()):
     archivos = sorted(p for p in carpeta.iterdir() if re.match(r"votacion_\d{4}", p.name))
     filas = []
     for archivo in archivos:
         id_votacion = int(re.match(r"votacion_(\d{4})", archivo.name).group(1))
+        if id_votacion in procesadas:
+            continue
         for cruda in leer_csv_como_fread(archivo):
             fila = {nuevo: cruda[viejo] for viejo, nuevo in CAMPOS_VOTO.items()}
             fila["id_votacion"] = id_votacion
@@ -93,6 +104,29 @@ def leer_info_sesiones(carpeta):
         fila["fecha_hora"] = fecha_hora.strftime("%Y-%m-%dT%H:%M:%SZ")
         fila["yr"] = fecha_hora.year
     return filas
+
+
+def leer_info_sesiones_previa(ruta):
+    if not ruta.exists():
+        return []
+    with open(ruta, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def leer_sesiones_previas(ruta):
+    if not ruta.exists():
+        return []
+    with gzip.open(ruta, "rt", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def hacer_backups(ruta_info, ruta_sesiones):
+    if not (ruta_info.exists() or ruta_sesiones.exists()):
+        return
+    sello = datetime.now().strftime("%Y%m%d_%H%M%S")
+    for ruta in (ruta_info, ruta_sesiones):
+        if ruta.exists():
+            shutil.copy2(ruta, ruta.with_name(f"backup_{sello}_{ruta.name}"))
 
 
 def asignar_ids(filas, campo):
@@ -135,20 +169,33 @@ def main():
     carpeta_salida = Path(sys.argv[2])
     if not carpeta_salida.is_absolute():
         carpeta_salida = carpeta_entrada / carpeta_salida
+    carpeta_salida.mkdir(parents=True, exist_ok=True)
 
-    sesiones = leer_sesiones(carpeta_entrada)
-    info_sesiones = leer_info_sesiones(carpeta_entrada)
+    ruta_info = carpeta_salida / "info_sesiones_dt.csv"
+    ruta_sesiones = carpeta_salida / "sesiones_dt.csv.gz"
+    hacer_backups(ruta_info, ruta_sesiones)
 
+    info_previas = leer_info_sesiones_previa(ruta_info)
+    sesiones_previas = leer_sesiones_previas(ruta_sesiones)
+    procesadas = {int(fila["id_votacion"]) for fila in info_previas} | \
+                 {int(fila["id_votacion"]) for fila in sesiones_previas}
+
+    info_nuevas = [f for f in leer_info_sesiones(carpeta_entrada) if int(f["id_votacion"]) not in procesadas]
+    sesiones_nuevas = leer_sesiones(carpeta_entrada, procesadas)
+
+    info_sesiones = info_previas + info_nuevas
     yr_por_votacion = {int(fila["id_votacion"]): fila["yr"] for fila in info_sesiones}
-    for fila in sesiones:
+    for fila in sesiones_nuevas:
         fila["yr"] = yr_por_votacion.get(fila["id_votacion"])
 
+    sesiones = sesiones_previas + sesiones_nuevas
     for campo in ("legislador", "bloque", "provincia"):
         asignar_ids(sesiones, campo)
 
-    carpeta_salida.mkdir(parents=True, exist_ok=True)
-    guardar_info_sesiones(info_sesiones, carpeta_salida / "info_sesiones_dt.csv")
-    guardar_sesiones(sesiones, carpeta_salida / "sesiones_dt.csv.gz")
+    guardar_info_sesiones(info_sesiones, ruta_info)
+    guardar_sesiones(sesiones, ruta_sesiones)
+    print(f"{len(info_nuevas)} votaciones nuevas, {len(sesiones_nuevas)} votos nuevos "
+          f"(total: {len(info_sesiones)} votaciones, {len(sesiones)} votos).")
 
 
 if __name__ == "__main__":
