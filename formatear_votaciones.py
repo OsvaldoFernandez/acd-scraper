@@ -184,6 +184,7 @@ def main():
     sesiones_nuevas = leer_sesiones(carpeta_entrada, procesadas)
 
     info_sesiones = info_previas + info_nuevas
+    info_sesiones.sort(key=lambda fila: fila["fecha_hora"], reverse=True)
     yr_por_votacion = {int(fila["id_votacion"]): fila["yr"] for fila in info_sesiones}
     for fila in sesiones_nuevas:
         fila["yr"] = yr_por_votacion.get(fila["id_votacion"])
