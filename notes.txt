@@ -1,0 +1,11 @@
+Cuántas votaciones y cuántas filas nuevas encontraron.
+- 142 votaciones nuevas, 36494 votos nuevos (total: 537 votaciones, 138009 votos).
+
+Qué controles hicieron para saber que la base está completa y bien unida.
+
+El código y los prompts, en su repo.
+https://github.com/OsvaldoFernandez/acd-scraper
+
+python3 scraper_votaciones.py    # baja los csvs
+python3 formatear_votaciones.py votaciones_csvs ./ # formatea los csvs
+python3 validar_tablas.py votaciones_csvs
